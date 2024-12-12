@@ -8,8 +8,11 @@ type GameContextType = {
 
 const GameContext = createContext<GameContextType | null>(null);
 
-export function GameProvider({ children }: { children: ReactNode }) {
-  const [game, setGame] = useState(new Chess());
+export function ChessGameProvider({ children }: { children: ReactNode }) {
+  const [game, setGameInstance] = useState(new Chess());
+  const setGame = (game: Chess) => {
+    setGameInstance(new Chess(game.fen()));
+  };
 
   return (
     <GameContext.Provider value={{ game, setGame }}>
@@ -18,10 +21,10 @@ export function GameProvider({ children }: { children: ReactNode }) {
   );
 }
 
-export function useGame() {
+export function useChessGame() {
   const context = useContext(GameContext);
   if (!context) {
-    throw new Error("useGame must be used within a GameProvider");
+    throw new Error("useChessGame must be used within a ChessGameProvider");
   }
   return context;
 }

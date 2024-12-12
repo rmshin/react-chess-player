@@ -1,43 +1,17 @@
 import { useEffect, useState } from "react";
-import { Chess, Square, WHITE, BLACK } from "chess.js";
-import { pieceMap, PieceSymbol } from "./pieces";
-import { GameProvider, useGame } from "./GameContext";
-
-type PlayerColor = typeof WHITE | typeof BLACK;
-
-class BoardPosition {
-  private _row: number;
-  private _col: number;
-
-  constructor(position: Square | { row: number; col: number }) {
-    if (typeof position === "string") {
-      this._row = 8 - parseInt(position.slice(1));
-      this._col = position.charCodeAt(0) - "a".charCodeAt(0);
-    } else {
-      this._row = position.row;
-      this._col = position.col;
-    }
-  }
-
-  get row() {
-    return this._row;
-  }
-
-  get col() {
-    return this._col;
-  }
-
-  square() {
-    return `${String.fromCharCode(this.col + "a".charCodeAt(0))}${
-      8 - this.row
-    }` as Square;
-  }
-}
-
-type DraggingPiece = {
-  position: { left: number; top: number };
-  square: Square;
-};
+import { WHITE, BLACK } from "chess.js";
+import {
+  PlayerColor,
+  DraggingPiece,
+  BoardPosition,
+  PieceSymbol,
+} from "./chess/types";
+import { ChessGameProvider, useChessGame } from "./chess/game-context";
+import {
+  getPositionFromSquare,
+  getSquareFromPosition,
+  pieceToImgMap,
+} from "./chess/utils";
 
 function ChessGame() {
   const width = 600;
@@ -50,7 +24,7 @@ function ChessGame() {
   );
 
   return (
-    <GameProvider>
+    <ChessGameProvider>
       <div
         className={`w-[${width}px] h-[${width}px] border border-gray-800 relative`}
       >
@@ -62,7 +36,7 @@ function ChessGame() {
           setDraggingPiece={setDraggingPiece}
         />
       </div>
-    </GameProvider>
+    </ChessGameProvider>
   );
 }
 
@@ -77,8 +51,8 @@ function GameState({
   draggingPiece: DraggingPiece | null;
   setDraggingPiece: (piece: DraggingPiece | null) => void;
 }) {
-  const { game, setGame } = useGame();
-  const position = game.board();
+  const { game, setGame } = useChessGame();
+  const positions = game.board();
   const turn = game.turn();
 
   useEffect(() => {
@@ -87,13 +61,13 @@ function GameState({
       const move = game.moves();
       const randomMove = move[Math.floor(Math.random() * move.length)];
       game.move(randomMove);
-      setGame(new Chess(game.fen()));
+      setGame(game);
     }
   }, [draggingPiece]);
 
   return (
     <div className="absolute top-0 left-0 right-0 bottom-0">
-      {position.map((row) =>
+      {positions.map((row) =>
         row.map((piece) => {
           if (piece === null) return null;
 
@@ -105,9 +79,9 @@ function GameState({
           return (
             <BoardPiece
               key={piece.square}
-              pieceImg={pieceMap[pieceSymbol]}
+              pieceImg={pieceToImgMap[pieceSymbol]}
               squareWidth={squareWidth}
-              position={new BoardPosition(piece.square)}
+              position={getPositionFromSquare(piece.square)}
               draggable={playerColor === piece.color && turn === piece.color}
               draggingPiece={draggingPiece}
               setDraggingPiece={setDraggingPiece}
@@ -134,9 +108,9 @@ function BoardPiece({
   draggingPiece: DraggingPiece | null;
   setDraggingPiece: (piece: DraggingPiece | null) => void;
 }) {
-  const { game } = useGame();
+  const { game, setGame } = useChessGame();
 
-  const isDragging = draggingPiece?.square === position.square();
+  const isDragging = draggingPiece?.square === getSquareFromPosition(position);
   const top = isDragging
     ? draggingPiece.position.top
     : position.row * squareWidth;
@@ -163,16 +137,17 @@ function BoardPiece({
       const targetCol = Math.round((e.clientX - dragOffset.x) / squareWidth);
       const targetRow = Math.round((e.clientY - dragOffset.y) / squareWidth);
 
-      const targetSquare = new BoardPosition({
+      const targetSquare = getSquareFromPosition({
         row: targetRow,
         col: targetCol,
-      }).square();
+      });
 
       try {
         game.move({
-          from: position.square(),
+          from: getSquareFromPosition(position),
           to: targetSquare,
         });
+        setGame(game);
       } catch (e) {
         console.error(e);
       }
@@ -200,20 +175,20 @@ function BoardPiece({
     });
     setDraggingPiece({
       position: { left, top },
-      square: position.square(),
+      square: getSquareFromPosition(position),
     });
   };
 
   return (
     <img
       src={pieceImg}
-      className={`absolute ${draggingPiece ? "z-50" : ""}`}
+      className={`absolute ${isDragging ? "z-50" : ""}`}
       style={{
         top: `${top}px`,
         left: `${left}px`,
         width: `${squareWidth}px`,
         height: `${squareWidth}px`,
-        cursor: draggable ? (draggingPiece ? "grabbing" : "grab") : "default",
+        cursor: draggable ? (isDragging ? "grabbing" : "grab") : "default",
       }}
       draggable={draggable}
       onMouseDown={handleMouseDown}
