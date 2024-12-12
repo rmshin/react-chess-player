@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { WHITE, BLACK } from "chess.js";
+import { DEFAULT_POSITION, WHITE, BLACK } from "chess.js";
 import {
   PlayerColor,
   DraggingPiece,
@@ -12,19 +12,23 @@ import {
   getSquareFromPosition,
   pieceToImgMap,
 } from "./chess/utils";
-
+import { useMutation } from "@tanstack/react-query";
+import { saveGameFenState } from "./api";
+import useStore from "./store";
 function ChessGame() {
   const width = 600;
   const squareWidth = width / 8;
 
   const playerColor: PlayerColor = WHITE;
 
+  const numMoves = useStore((state) => state.numMoves);
   const [draggingPiece, setDraggingPiece] = useState<DraggingPiece | null>(
     null
   );
 
   return (
     <ChessGameProvider>
+      <p>{numMoves}</p>
       <div
         className={`w-[${width}px] h-[${width}px] border border-gray-800 relative`}
       >
@@ -51,12 +55,19 @@ function GameState({
   draggingPiece: DraggingPiece | null;
   setDraggingPiece: (piece: DraggingPiece | null) => void;
 }) {
+  const saveGameFenMutation = useMutation({
+    mutationFn: saveGameFenState,
+    onSuccess: (data) => {
+      console.log(data);
+    },
+  });
+
   const { game, setGame } = useChessGame();
   const positions = game.board();
   const turn = game.turn();
 
   useEffect(() => {
-    if (turn !== playerColor) {
+    if (turn !== playerColor && !game.isGameOver()) {
       // Make random move
       const move = game.moves();
       const randomMove = move[Math.floor(Math.random() * move.length)];
@@ -64,6 +75,18 @@ function GameState({
       setGame(game);
     }
   }, [draggingPiece]);
+
+  useEffect(() => {
+    if (game.fen() !== DEFAULT_POSITION) {
+      saveGameFenMutation.mutate(game.fen());
+    }
+  }, [game]);
+
+  useEffect(() => {
+    if (game.isGameOver()) {
+      console.log("Game over");
+    }
+  }, [game]);
 
   return (
     <div className="absolute top-0 left-0 right-0 bottom-0">
@@ -109,6 +132,7 @@ function BoardPiece({
   setDraggingPiece: (piece: DraggingPiece | null) => void;
 }) {
   const { game, setGame } = useChessGame();
+  const addMove = useStore((state) => state.addMove);
 
   const isDragging = draggingPiece?.square === getSquareFromPosition(position);
   const top = isDragging
@@ -148,6 +172,7 @@ function BoardPiece({
           to: targetSquare,
         });
         setGame(game);
+        addMove();
       } catch (e) {
         console.error(e);
       }
